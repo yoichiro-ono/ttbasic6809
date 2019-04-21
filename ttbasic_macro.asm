@@ -1,0 +1,10 @@
+	SETDP	0
+SET_ZF	MACRO
+	ORCC	#%00000100	;set zero flg
+	ENDM
+CLR_ZF	MACRO
+	ANDCC	#%11111011	;clear zero flg
+	ENDM
+CLR_FLG	MACRO
+	ANDCC	#%11010000	;clear flag
+	ENDM
