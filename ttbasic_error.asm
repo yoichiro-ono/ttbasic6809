@@ -134,13 +134,14 @@ PRINT_MSG	LBSR	C_NEWLINE	;改行
 	;エラーコードに対応したメッセージのアドレスを取得
 	LDB	ERR_CODE
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"ERR_CODE"
+	;DBG_PUTLINE	"ERR_CODE"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
 	LDX	#ERROR_TBL
-	ASLB
-	ABX
-	LDX	, X
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	LDX	B, X
 	LBSR	C_PUTS	;「OK」またはエラーメッセージを表示
 	LBSR	C_NEWLINE	;改行
 	CLR	ERR_CODE

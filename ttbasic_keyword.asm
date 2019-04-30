@@ -194,6 +194,10 @@ I_EOL	EQU	I_STR+1
 ;          		RESET : 変換NG
 ;-----------------------------------------------------
 TOKEN_TO_ICODE
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"TOKEN_TO_ICODE"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	;キーワードテーブルで変換を試みる
 	LDU	#KW_TO_ICODE_TBL	;U <= キーワードテーブル
 1	LDX	, U	;キーワードへのポインタを取得
@@ -216,14 +220,7 @@ TOKEN_TO_ICODE
 	BRA	1B
 3	;キーワードが一致した
 	PULS	X	;保存していた位置を破棄
-;	;::::::::::debug :::::::::::::
-;	PUT_C	'['
-;	;::::::::::debug :::::::::::::
 	LDA	2, U	;ICODEを取得
-;	;::::::::::debug :::::::::::::
-;	LBSR	PUTHEX_A
-;	PUT_C	']'
-;	;::::::::::debug :::::::::::::
 	LEAY	-1, Y
 	SET_ZF
 	RTS
@@ -240,7 +237,7 @@ TOKEN_TO_ICODE
 ;-----------------------------------------------------
 IS_NOSPACE_AF
 	PSHS	X
-	LDX	NSA_TBL
+	LDX	#NSA_TBL
 	BRA	NOSPACE_CHK
 	
 
@@ -252,9 +249,9 @@ IS_NOSPACE_AF
 ;-----------------------------------------------------
 IS_NOSPACE_BF
 	PSHS	X
-	LDX	NSB_TBL
+	LDX	#NSB_TBL
 NOSPACE_CHK	CMPA	, X
-	BRA	1F
+	BEQ	1F
 	TST	, X+
 	BNE	NOSPACE_CHK
 	CLR_ZF
@@ -274,6 +271,7 @@ NSA_TBL	FCB	I_RETURN
 	FCB	I_SHARP
 	FCB	I_GT
 	FCB	I_EQ
+	FCB	I_NEQ
 	FCB	I_LTE
 	FCB	I_LT
 	FCB	I_ARRAY
@@ -294,6 +292,7 @@ NSB_TBL
 	FCB	I_SHARP
 	FCB	I_GT
 	FCB	I_EQ
+	FCB	I_NEQ
 	FCB	I_LTE
 	FCB	I_LT
 	FCB	I_COMMA
@@ -341,7 +340,7 @@ TOKTOI
 	CLR	WLEN	;中間コードのバイト数
 TOKTOI_LOOP	
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"TOKTOI\r"
+	;DBG_PUTLINE	"TOKTOI"
 	;DBG_DUMP_LBUF
 	;::::::::::debug :::::::::::::
 	LBSR	SKIP_SPACE_Y
@@ -349,6 +348,9 @@ TOKTOI_LOOP
 	LBEQ	TOKTOI_END
 	;キーワードテーブルでICODEに変換を試みる
 	LBSR	TOKEN_TO_ICODE
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	BEQ	KEYWORD
 	LDA	, Y
 	;数字の場合は、定数への変換を試みる

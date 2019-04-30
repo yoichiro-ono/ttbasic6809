@@ -40,7 +40,7 @@ LISTBUF	RMB	SIZE_LIST	;List area
 	ORG	$E000
 
 TITLE	FCC	"TOYOSHIKI TINY BASIC",0
-EDITION	FCC	"6809 HAND COMPILE"
+EDITION	FCC	"6809"
 	FCC	" EDITION",0
 PROMPT_LINE	FCC	"LINE:",0
 PROMPT_YOU_TYPE	FCC	"YOU TYPE: ",0
@@ -71,7 +71,7 @@ RESET	;リセット
 	;スタックの設定
 	LDS	#STACK_TOP
 	;乱数初期値の設定
-	LDD	12345
+	LDD	#12345
 	STD	RANDOM_SEED
 
 	JMP	BASIC
@@ -94,6 +94,10 @@ RESET	;リセット
 ;		Y	CIP
 ;---------------------------------------------------------------------------
 GET_PARAM
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"GET_PARAM"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	LDA	, Y
 	;"("でない場合はエラー
 	CMPA	#I_OPEN
@@ -104,6 +108,10 @@ GET_PARAM
 	TST	ERR_CODE	;もしエラーが生じたら
 	BNE	1F	;終了
 
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"GET_PARAM2"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	PSHS	D
 	;")"でない場合はエラー
 	LDA	, Y
@@ -111,6 +119,10 @@ GET_PARAM
 	PULS	D
 	BNE	GET_PARAM_ERR
 
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"GET_PARAM END"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	LEAY	1, Y	;中間コードポインタを次へ進める
 	RTS
 
@@ -128,13 +140,13 @@ GET_PARAM_ERR
 ;---------------------------------------------------------------------------
 IVALUE
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"IVALUE"
+	;DBG_PUTLINE	"IVALUE"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
 	PSHS	X
 	LDB	, Y
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"IVALUE_TBL"
+	;DBG_PUTLINE	"IVALUE_TBL"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
 	CMPB	#I_STR
@@ -195,7 +207,7 @@ IVALUE_NUM	;定数
 	LEAY	1, Y	;中間コードポインタを次へ進める
 	LDD	, Y++	;定数を取得し中間コードポインタを定数の次へ進める
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"IVALUE_NUM"
+	;DBG_PUTLINE	"IVALUE_NUM"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
 	PULS	X, PC
@@ -203,7 +215,8 @@ IVALUE_NUM	;定数
 	;-----------------------------------------------------------
 IVALUE_PLUS	;+付きの値の取得
 	LEAY	1, Y	;中間コードポインタを次へ進める
-	BSR	IVALUE	;値を取得
+	;BSR	IVALUE	;値を取得
+	JSR	IVALUE
 	;::::::::::debug :::::::::::::
 	;DBG_PUTS	"IVALUE_PLUS"
 	;DBG_PRINT_REGS
@@ -213,7 +226,7 @@ IVALUE_PLUS	;+付きの値の取得
 	;-----------------------------------------------------------
 IVALUE_MINUS	;負の値の取得
 	LEAY	1, Y	;中間コードポインタを次へ進める
-	BSR	IVALUE
+	LBSR	IVALUE
 	LBSR	NEGD
 	;::::::::::debug :::::::::::::
 	;DBG_PUTS	"IVALUE_MINUS"
@@ -223,11 +236,21 @@ IVALUE_MINUS	;負の値の取得
 
 	;-----------------------------------------------------------
 IVALUE_VAR	;変数番号を取得する
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IVALUE_VAR"
+	;::::::::::debug :::::::::::::
+	LEAY	1, Y
 	LDB	, Y+
 	LDX	#VAR
 	ASLB
 	ABX
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	LDD	, X
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	PULS	X, PC
 
 	;-----------------------------------------------------------
@@ -248,19 +271,35 @@ IVALUE_ARRAY	;配列の値の取得
 
 	;-----------------------------------------------------------
 IVALUE_RND	;RND
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IVALUE_NUM"
+	;::::::::::debug :::::::::::::
 	LEAY	1, Y
 	LBSR	GET_PARAM
 	TST	ERR_CODE
 	LBNE	IVALUE_END	;エラー発生時は終了
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"PARAM"
+	;DBG_PUTHEX_D
+	;DBG_NEWLINE
+	;::::::::::debug :::::::::::::
 	LBSR	GETRND
 	PULS	X, PC
 
 	;-----------------------------------------------------------
 IVALUE_ABS	;ABS
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IVALUE_ABS"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	LEAY	1, Y
 	LBSR	GET_PARAM
 	TST	ERR_CODE
 	LBNE	IVALUE_END	;エラー発生時は終了
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IVALUE"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	CMPD	#0
 	BHS	1F
 	LBSR	NEGD
@@ -294,13 +333,13 @@ IVALUE_SIZE_ERR
 ;---------------------------------------------------------------------------
 IMUL
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"IMUL\r"
+	;DBG_PUTLINE	"IMUL"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
 	PSHS	X, U
 	LBSR	IVALUE
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"IMUL IVALUE END\r"
+	;DBG_PUTLINE	"IMUL IVALUE END"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
 	TST	ERR_CODE
@@ -313,11 +352,13 @@ IMUL_LOOP
 	CMPA	#I_DIV
 	BEQ	IMUL_DIV
 	;MUL,DIVのいずれでもない
+	PULS	D
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"IMUL END"
+	;DBG_PUTLINE	"IMUL END"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
-	PULS	D, X, U, PC
+	PULS	X, U, PC
+	;PULS	D, X, U, PC
 	;-----------------------------------------------------------
 IMUL_MUL	;掛け算の場合
 	LEAY	1, Y	;中間コードポインタを次へ進める
@@ -325,6 +366,11 @@ IMUL_MUL	;掛け算の場合
 	LDX	, S	;被乗数をスタックから取得
 	LBSR	MUL16
 	STD	, S	;計算結果をスタックに保存
+	;::::::::::debug :::::::::::::
+	;DBG_PUTS	"IMUL:"
+	;DBG_PUTHEX_D
+	;DBG_NEWLINE
+	;::::::::::debug :::::::::::::
 	BRA	IMUL_LOOP
 
 	;-----------------------------------------------------------
@@ -336,6 +382,11 @@ IMUL_DIV	;割り算の場合
 	LDX	, S	;被除数をスタックから取得
 	LBSR	DIV16
 	STX	, S	;商をスタックに保存
+	;::::::::::debug :::::::::::::
+	;DBG_PUTS	"IDIV:"
+	;DBG_PUTHEX_D
+	;DBG_NEWLINE
+	;::::::::::debug :::::::::::::
 	BRA	IMUL_LOOP
 
 IMUL_ERR_DIV0
@@ -353,7 +404,11 @@ IMUL_ERR_END
 ;---------------------------------------------------------------------------
 IPLUS
 	PSHS	X, U
-	BSR	IMUL
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IPLUS"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	LBSR	IMUL
 	TST	ERR_CODE
 	BNE	IMUL_ERR_END
 	PSHS	D	;現在値をスタックに保存
@@ -364,7 +419,13 @@ IPLUS_LOOP
 	CMPA	#I_MINUS
 	BEQ	IPLUS_MINUS
 	;PLUS,MINUSのいずれでもない
-	PULS	D, X, U, PC
+	PULS	D
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IPLUS END"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	PULS	X, U, PC
+	;PULS	D, X, U, PC
 
 	;-----------------------------------------------------------
 IPLUS_PLUS	;足し算
@@ -372,6 +433,11 @@ IPLUS_PLUS	;足し算
 	LBSR	IMUL
 	ADDD	, S	;スタック上の現在値を加算
 	STD	, S	;結果をスタックに保存
+	;::::::::::debug :::::::::::::
+	;DBG_PUTS	"IPLUS:"
+	;DBG_PUTHEX_D
+	;DBG_NEWLINE
+	;::::::::::debug :::::::::::::
 	BRA	IPLUS_LOOP
 	;-----------------------------------------------------------
 IPLUS_MINUS	;引き算
@@ -380,6 +446,11 @@ IPLUS_MINUS	;引き算
 	LBSR	NEGD	;減算するために符号反転
 	ADDD	, S	;スタック上の現在値を加算
 	STD	, S	;結果をスタックに保存
+	;::::::::::debug :::::::::::::
+	;DBG_PUTS	"IMINUS:"
+	;DBG_PUTHEX_D
+	;DBG_NEWLINE
+	;::::::::::debug :::::::::::::
 	BRA	IPLUS_LOOP
 ;---------------------------------------------------------------------------
 ; Get constant number value
@@ -388,7 +459,7 @@ IPLUS_MINUS	;引き算
 ;---------------------------------------------------------------------------
 IEXP
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"IEXP\r"
+	;DBG_PUTLINE	"IEXP"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
 	PSHS	X, U
@@ -401,24 +472,34 @@ IEXP
 	;::::::::::debug :::::::::::::
 IEXP_LOOP
 	LDB	, Y
-	SUBB	#I_EQ
+	SUBB	#I_NEQ
 	BLO	IEXP_END
-	CMPB	#(I_GTE-I_EQ)
+	CMPB	#(I_GTE-I_NEQ)
 	BHI	IEXP_END
-	LDX	IEXP_TBL
-	SUBB	#I_EQ
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXP LOOP"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	LDX	#IEXP_TBL
 	ASLB
 	ABX
 	LEAY	1, Y	;中間コードポインタを次へ進める
 	LBSR	IPLUS
 	CMPD	, S	;スタック上の現在値と比較
-	JMP	, X
-IEXP_END	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"IEXP END\r"
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXP COMPARE"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
-	PULS	D, X, U, PC
+	JMP	[, X]
+IEXP_END	PULS	D
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXP_END"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	;PULS	D, X, U, PC
+	PULS	X, U, PC
 IEXP_TBL
+	FDB	IEXP_NEQ
 	FDB	IEXP_EQ
 	FDB	IEXP_SHARP
 	FDB	IEXP_LT
@@ -435,10 +516,19 @@ IEXP_TRUE
 	BRA	IEXP_LOOP
 	;-----------------------------------------------------------
 IEXP_EQ
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXP_EQ"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	BEQ	IEXP_TRUE
 	BRA	IEXP_FALSE
 	;-----------------------------------------------------------
 IEXP_SHARP
+IEXP_NEQ
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXP_NOT EQ"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	BNE	IEXP_TRUE
 	BRA	IEXP_FALSE
 	;-----------------------------------------------------------
@@ -467,7 +557,7 @@ IEXP_GTE
 IPRINT
 	PSHS	D, X, U
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"IPRINT"
+	;DBG_PUTLINE	"IPRINT"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
 	CLR	PLEN
@@ -488,19 +578,26 @@ IPRINT_LOOP
 	LBSR	IEXP
 	TST	ERR_CODE
 	BNE	IPRINT_ERR_END
+	LDX	PLEN
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"\rBEFORE PUTNUM"
+	;DBG_PUTLINE	"IPRINT PUTNUM"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
-	LDX	PLEN
 	LBSR	C_PUTNUM
 	BRA	IPRINT_NEXT
 	;-----------------------------------------------------------
 IPRINT_LOOP_E
 	LBSR	C_NEWLINE
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IPRINT END"
+	;::::::::::debug :::::::::::::
 IPRINT_ERR_END	PULS	D, X, U, PC
 	;-----------------------------------------------------------
 IPRINT_STR	;文字列の場合
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IPRINT STR"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	LEAY	1, Y	;中間コードポインタを次へ進める
 	LDB	, Y+	;文字数を取得する
 1	LDA	, Y+
@@ -675,11 +772,14 @@ IINPUT_PROMPT_STR
 ; OUT	Y : CIP
 ;---------------------------------------------------------------------------
 IVAR
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IVAR"
+	;::::::::::debug :::::::::::::
 	PSHS	D, X
-	LDB	, Y+
-	SUBB	#I_VAR
+	LDB	, Y+	;変数番号を取得して次に進む
+	;SUBB	#I_VAR
 	LDX	#VAR
-	ABX
+	ASLB
 	ABX
 	LDA	, Y
 	CMPA	#I_EQ	;「=」以外はエラー
@@ -689,6 +789,10 @@ IVAR
 	LBSR	IEXP
 	TST	ERR_CODE
 	BNE	IVAR_END
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IVAR VALUE"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	STD	, X
 IVAR_END
 	PULS	D, X, PC
@@ -702,6 +806,9 @@ IVAR_ERR
 ; OUT	Y : CIP
 ;---------------------------------------------------------------------------
 IARRAY
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IARRAY"
+	;::::::::::debug :::::::::::::
 	PSHS	D, X
 	LBSR	GET_PARAM
 	TST	ERR_CODE
@@ -709,7 +816,7 @@ IARRAY
 	CMPB	#SIZE_ARRY
 	BHS	IARRAY_ERR_SOR
 	LDX	#ARR
-	ABX
+	ASLB
 	ABX
 	LDA	, Y
 	CMPA	#I_EQ	;「=」以外はエラー
@@ -746,7 +853,7 @@ ILET
 	LDB	#ERR_LETWOV
 	STB	ERR_CODE
 	RTS
-ILET_VAR	BSR	IVAR
+ILET_VAR	LBSR	IVAR
 	RTS
 ILET_ARRAY	BSR	IARRAY
 	RTS
@@ -761,7 +868,9 @@ ILET_ARRAY	BSR	IARRAY
 IEXE
 	PSHS	X, Y, U
 	;::::::::::debug :::::::::::::
-	;DBG_PUTS	"IEXE\r"
+	;DBG_PUTLINE	"IEXE"
+	;DBG_PRINT_REGS
+	;DBG_DUMP_LIST
 	;::::::::::debug :::::::::::::
 IEXE_LOOP
 	LDB	, Y
@@ -770,6 +879,9 @@ IEXE_LOOP
 	CMPB	#I_SEMI
 	BHI	IEXE_NO_CMD
 	SUBB	#I_IF
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	LBLO	IEXE_ERR_SYNTAX
 	;::::::::::debug :::::::::::::
 	;DBG_PUTS	"IEXE_LOOP"
@@ -848,6 +960,10 @@ IEXE_END
 	LDB	, X
 	ABX
 	TFR	X, D
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXE END"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	PULS	X, Y, U, PC
 
 IEXE_ERR_SYNTAX
@@ -860,13 +976,22 @@ IEXE_ERR_END	STB	ERR_CODE
 
 	;-----------------------------------------------------------
 IEXE_IF
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXE_IF"
+	;::::::::::debug :::::::::::::
 	LEAY	1, Y	;中間コードポインタを次へ進める
 	LBSR	IEXP
 	TST	ERR_CODE
 	BNE	IEXE_IF_ERR
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	CMPD	#0
 	BEQ	IEXE_REM	;偽の場合の処理はREMと同じ
 	;真の場合は次の文を実行する
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXE_IF END"
+	;::::::::::debug :::::::::::::
 	RTS
 
 IEXE_IF_ERR	LDB	#ERR_IFWOC
@@ -874,31 +999,51 @@ IEXE_IF_ERR	LDB	#ERR_IFWOC
 	RTS
 	;-----------------------------------------------------------
 IEXE_REM	;I_EOLに達するまで中間コードポインタを次へ進める
-	LDA	, Y+
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXE_REM"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+IEXE_REM_LOOP	LDA	, Y+
 	CMPA	#I_EOL
-	BNE	IEXE_REM
+	BNE	IEXE_REM_LOOP
 	LEAY	-1, Y
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXE_REM END"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	RTS
 	;-----------------------------------------------------------
 IEXE_GOTO
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXE_GOTO"
+	;::::::::::debug :::::::::::::
 	LEAY	1, Y	;中間コードポインタを次へ進める
 	;GOTO先を取得する
-	BSR	IEXE_GET_NEXT_LINENO
+	BSR	IEXE_GET_GO_LINE
 	TST	ERR_CODE
 	BNE	IEXE_GOTO_END
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"D:LINE NO,X:LINE PTR,Y:NEXT LINE"
+	;::::::::::debug :::::::::::::
 	;行ポインタを分岐先へ変更
 	STX	CLP
 	;中間コードポインタを先頭の中間コードに更新
 	LEAY	3, X
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 IEXE_GOTO_END	RTS
 IEXE_GOTO_ERR	LDB	#ERR_ULN
 	STB	ERR_CODE
 	RTS
 	;-----------------------------------------------------------
 IEXE_GOSUB
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXE_GOSUB"
+	;::::::::::debug :::::::::::::
 	LEAY	1, Y	;中間コードポインタを次へ進める
 	;GOSUB先を取得する
-	BSR	IEXE_GET_NEXT_LINENO
+	BSR	IEXE_GET_GO_LINE
 	TST	ERR_CODE
 	BNE	IEXE_GOTO_END
 
@@ -906,9 +1051,15 @@ IEXE_GOSUB
 	CMPA	#(SIZE_GSTK - SIZE_NEST_GSTK)
 	;GOSUBスタックがいっぱいならエラー
 	BHI	IEXE_GOSUB_ERR
-	LDU	GSTK
+	LDU	#GSTK
 	LEAU	A, U
-	LDU	CLP	;行ポインタを取得
+	ADDA	#5
+	STA	GSTKI
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"GSTK"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	LDD	CLP	;行ポインタを取得
 	STD	, U++	;行ポインタを退避
 	STY	, U++	;中間コードポインタを退避
 	LDA	LSTKI	;FORスタックインデックスを取得
@@ -920,11 +1071,18 @@ IEXE_GOSUB_ERR	LDB	#ERR_GSTKOF
 	STB	ERR_CODE
 	RTS
 	;-----------------------------------------------------------
-IEXE_GET_NEXT_LINENO
+	;GOTO/GOSUB先の行番号・行ポインタを取得する
+	;D:次の行番号
+	;X:次の行ポインタ
+IEXE_GET_GO_LINE
 	LBSR	IEXP	;D=行番号
 	TST	ERR_CODE
 	BNE	IEXE_GET_NEXT_END
 	LBSR	GET_LINE_PTR	;x=line pointer
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"LINE PTR"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	PSHS	D
 	LBSR	GET_LINE_NO	;line pointerから行番号を取得
 	;行番号が一致していない場合は分岐先が存在しない
@@ -939,11 +1097,16 @@ IEXE_GET_NEXT_ERR
 	RTS
 	;-----------------------------------------------------------
 IEXE_RETURN
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXE_RETURN"
+	;::::::::::debug :::::::::::::
 	LDA	GSTKI
 	CMPA	#SIZE_NEST_GSTK
 	BLO	IEXE_RETURN_ERR	;GOSUBスタックが空ならエラー
-	LDU	GSTK
+	LDU	#GSTK
 	LEAU	A, U
+	SUBA	#5
+	STA	GSTKI
 	LDA	, -U	;FORスタックインデックスを復帰
 	STA	LSTKI
 	LDY	, --U	;中間コードポインタを復帰
@@ -955,23 +1118,34 @@ IEXE_RETURN_ERR	LDB	#ERR_GSTKUF
 	RTS
 	;-----------------------------------------------------------
 IEXE_FOR
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXE_FOR"
+	;::::::::::debug :::::::::::::
 	LEAY	1, Y	;中間コードポインタを次へ進める
 	LDA	, Y+
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	CMPA	#I_VAR	;変数がない場合はエラー
-	BNE	IEXE_FOR_ERR_FORWOV
+	LBNE	IEXE_FOR_ERR_FORWOV
 	LDA	, Y	;変数名を取得
 	LBSR	IVAR
 	TST	ERR_CODE
-	BNE	IEXE_FOR_END	;エラー発生時は終了
+	LBNE	IEXE_FOR_END	;エラー発生時は終了
 	PSHS	A	;変数のインデックスを保存
 	;終了値を取得
 	LDA	, Y
 	CMPA	#I_TO	;TOがなければエラー
-	BNE	IEXE_FOR_ERR_FORWOTO
+	LBNE	IEXE_FOR_ERR_FORWOTO
 	LEAY	1, Y	;中間コードポインタを次へ進める
 	LBSR	IEXP	;終了値を取得
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"TO"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	PSHS	D	;終了値を保存
 	;増分を取得
+	LDA	, Y
 	CMPA	#I_STEP
 	BNE	FOR_NO_STEP
 	LEAY	1, Y	;中間コードポインタを次へ進める
@@ -979,6 +1153,10 @@ IEXE_FOR
 	BRA	FOR_CHK_STEP
 FOR_NO_STEP	LDD	#1	;増分=1
 FOR_CHK_STEP	;増分のチェック
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"STEP"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	PSHS	D	;増分を保存
 	CMPD	#0
 	BMI	MINUS_STEP	;増分<0
@@ -994,18 +1172,40 @@ MINUS_STEP	ADDD	#-32767
 	CMPD	2, S
 	BHI	IEXE_FOR_ERR_VOF
 STEP_OK	;スタックチェック
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"STEP OK"
+	;::::::::::debug :::::::::::::
 	LDA	LSTKI
 	CMPA	#(SIZE_LSTK - SIZE_NEST_LSTK)
 	;FORスタックがいっぱいならエラー
 	BHI	IEXE_FOR_ERR_LSTKOF
-	LDU	LSTK
+	LDU	#LSTK
 	LEAU	A, U
-	LDU	CLP	;行ポインタを取得
+	ADDA	#9
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"NEW LSTKI(A)"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	STA	LSTKI
+	LDD	CLP	;行ポインタを取得
 	STD	, U++	;行ポインタを退避
 	STY	, U++	;中間コードポインタを退避
-	PULS	D, X	;X:増分、D:終了値
-	STD	, U++	;終了値を退避
-	STX	, U++	;増分を退避
+	PULS	D, X	;D:増分、X:終了値
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"D=STEP,X=END"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	STX	, U++	;終了値を退避
+	STD	, U++	;増分を退避
+	;::::::::::debug :::::::::::::
+	DBG_PUTS	"FOR TO "
+	LDD	-4, U
+	DBG_PUTHEX_D
+	DBG_PUTS	" STEP "
+	LDD	-2, U
+	DBG_PUTHEX_D
+	DBG_NEWLINE
+	;::::::::::debug :::::::::::::
 	PULS	A
 	STA	, U+	;変数インデックスを退避
 IEXE_FOR_END	RTS
@@ -1028,15 +1228,24 @@ FOR__ERR_END	STB	ERR_CODE
 	RTS
 	;-----------------------------------------------------------
 IEXE_NEXT
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXE_NEXT"
+	;::::::::::debug :::::::::::::
 	LEAY	1, Y	;中間コードポインタを次へ進める
 	LDA	LSTKI
 	CMPA	#SIZE_NEST_LSTK
-	BLO	IEXE_NEXT_ERR	;NEXTスタックが空ならエラー
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	LBLO	IEXE_NEXT_ERR	;NEXTスタックが空ならエラー
 	LDB	, Y+
 	CMPB	#I_VAR	;NEXTの後ろに変数がなかったらエラー
-	BNE	IEXE_NEXT_ERR_NEXTWOV
-	LDU	LSTK
-	LEAU	B, U
+	LBNE	IEXE_NEXT_ERR_NEXTWOV
+	LDU	#LSTK
+	LEAU	A, U
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	;	U-1:変数インデックス
 	;	U-3:増分
 	;	U-5:終了値
@@ -1047,30 +1256,48 @@ IEXE_NEXT
 	;NEXTの後ろの変数と比較
 	CMPB	, Y+	;一致しなかったらエラー
 	BNE	IEXE_NEXT_ERR_NEXTUM
-	LDX	VAR
+	LDX	#VAR
 	ASLB
 	ABX		;X : 変数へのポインタ
 	;増分を取得
 	LDD	-3, U
-	PSHS	D
 	ADDD	, X
 	STD	, X
 	TFR	D, X
-	PULS	D
-	CMPD	#0
-	BLO	NEXT_STEP_MINUS
+	LDD	-3, U	;増分をチェック
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"NEXT X=VAL, D=STEP"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	BMI	NEXT_STEP_MINUS
 	;増分がプラスの場合
-	CMPX	, S
-	BHI	IEXE_NEXT_OVER	;終了値を超えたので終了
+	CMPX	-5, U
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"END CHK +"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	BGT	IEXE_NEXT_OVER	;終了値を超えたので終了
 	BRA	IEXE_NEXT_CONT	;ループを継続
 NEXT_STEP_MINUS	;増分がマイナスの場合
-	CMPX	, S
-	BLO	IEXE_NEXT_OVER
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"END CHK -"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	CMPX	-5, U
+	BLT	IEXE_NEXT_OVER
 IEXE_NEXT_CONT	;ループの継続
 	LDY	-7, U	;中間コードポインタを復帰
 	LDD	-9, U	;行ポインタを復帰
+	STD	CLP
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"NEXT CONT"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	RTS
 IEXE_NEXT_OVER	;FOR-NEXTの終了
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"NEXT END"
+	;::::::::::debug :::::::::::::
 	LDA	LSTKI
 	SUBA	#SIZE_NEST_LSTK
 	STA	LSTKI	;スタックを1ネスト分戻す
@@ -1135,6 +1362,12 @@ IEXE_VAR
 ;---------------------------------------------------------------------------
 IRUN
 	PSHS	D, X, Y, U
+	;::::::::::debug :::::::::::::
+	;DBG_PUTS	"IRUN START"
+	;DBG_PRINT_REGS
+	;DBG_NEWLINE
+	DBG_DUMP_LIST
+	;::::::::::debug :::::::::::::
 	CLR	GSTKI	;GOSUBスタックインデックスの初期化
 	CLR	LSTKI	;FORスタックインデックスの初期化
 	LDX	#LISTBUF
@@ -1179,7 +1412,7 @@ ILIST_LOOP1_E	;リストを表示する
 	;DBG_PUTS	"LIST START"
 	;DBG_PRINT_REGS
 	;DBG_NEWLINE
-	DBG_DUMP_LIST
+	;DBG_DUMP_LIST
 	;::::::::::debug :::::::::::::
 ILIST_LOOP2	
 	;::::::::::debug :::::::::::::

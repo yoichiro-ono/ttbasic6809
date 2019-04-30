@@ -302,12 +302,12 @@ PUTLIST_STR	;文字列の処理
 	BSR	PUTLIST_SET_DLM
 	PSHS	A	;「"」または「'」
 	;文字列の括りを表示
-	LBRA	C_PUTCH
+	LBSR	C_PUTCH
 	;文字列を表示する
 	BSR	PUTLIST_PUTS_Y
 	;文字列の括りを表示
 	PULS	A
-	LBRA	C_PUTCH
+	LBSR	C_PUTCH
 	BRA	PUTLIST_LOOP
 	;-----------------------------------------------------
 PUTLIST_PUTS_X	LDA	,X+
@@ -335,17 +335,21 @@ PUTLIST_SET_DLM	LDA	B, Y
 	LDA	#($22-5)
 PUTLIST_SET_DLM_E
 	ADDA	#5
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"PUTLIST DELIMITER"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	RTS
 	;-----------------------------------------------------
 	;キーワードの後ろに空白を出力するかチェックし
 	;必要なら空白を出力
 NOSPACE_AF	LBSR	IS_NOSPACE_AF
-	BNE	NOSPACE_AF_E
+	BEQ	NOSPACE_AF_E
 	LBSR	C_PUT_SPACE
 NOSPACE_AF_E	RTS
 	;-----------------------------------------------------
 	;次の命令が空白表示例外に当たらなければ空白を表示する
 NOSPACE_BF	LBSR	IS_NOSPACE_BF
-	BNE	NOSPACE_BF_E
+	BEQ	NOSPACE_BF_E
 	LBSR	C_PUT_SPACE
 NOSPACE_BF_E	RTS

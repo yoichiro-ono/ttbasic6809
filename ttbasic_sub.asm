@@ -7,36 +7,52 @@
 ;---------------------------------------------------------------------------
 RANDOM
 	; seed ^= seed << 7
-	LDA	RANDOM_SEED[1]
+	LDA	RANDOM_SEED+1
 	LDB	RANDOM_SEED
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"RANDOM SEED"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	RORB
 	RORA
 	RORB
 	ANDB	#$80
 	EORA	RANDOM_SEED
-	EORB	RANDOM_SEED[1]
+	EORB	RANDOM_SEED+1
 	STD	RANDOM_SEED
 	; RANDOM_SEED ^= RANDOM_SEED >> 9
 	LDB	RANDOM_SEED
 	LSRB
-	EORB	RANDOM_SEED[1]
-	STB	RANDOM_SEED[1]
+	EORB	RANDOM_SEED+1
+	STB	RANDOM_SEED+1
 	; RANDOM_SEED ^= RANDOM_SEED << 8
-	LDA	RANDOM_SEED[1]
+	LDA	RANDOM_SEED+1
 	EORA	RANDOM_SEED
 	STA	RANDOM_SEED
 	;d=RANDOM_SEED
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"RANDOM"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	RTS
 ;---------------------------------------------------------------------------
 ;—”Žæ“¾
 ; 0`D-1‚Ì—”‚ðŽæ“¾‚·‚é
 ;---------------------------------------------------------------------------
 GETRND
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"GETRND"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	PSHS	X
 	TFR	D, X
 	BSR	RANDOM
 	EXG	X, D
 	BSR	DIV16
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"GETRND RESULT"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	PULS	X, PC
 
 ;---------------------------------------------------------------------------
@@ -269,9 +285,15 @@ ISDIGIT	CMPA	#'0'
 ;	OUT	ZF	SET : ‰pŽš
 ;			RESET : ‰pŽšˆÈŠO
 ;---------------------------------------------------------------------------
-ISALPHA	ORA	#%00100000	;¬•¶Žš‚É•ÏŠ·‚·‚é
+ISALPHA	CMPA	#'A'
+	BLO	ISALPHA_FALSE
+	CMPA	#'Z'+1
+	BLO	ISALPHA_TRUE
 	CMPA	#'a'
-	BLO	2B	;CLEAR ZERO FLAG
-	CMPA	#'z'
-	BHI	2B	;CLEAR ZERO FLAG
-	BRA	1B	;SET ZERO FLAG
+	BLO	ISALPHA_FALSE
+	CMPA	#'z'+1
+	BLO	ISALPHA_TRUE
+ISALPHA_FALSE	CLR_ZF
+	RTS
+ISALPHA_TRUE	SET_ZF
+	RTS

@@ -3,14 +3,20 @@
 ;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 	IF	DEBUG_ENABLE
 DBG_PUTC	MACRO
-	PSHS	A
+	PSHS	CC, A
 	LDA	#\1
 	LBSR	C_PUTCH
-	PULS	A
+	PULS	CC, A
 	ENDM
 	
 DBG_PUTS	MACRO
 	LBSR	PUTS
+	FCC	\1
+	FCB	0
+	ENDM
+	
+DBG_PUTLINE	MACRO
+	LBSR	PUTLINE
 	FCC	\1
 	FCB	0
 	ENDM
@@ -44,30 +50,17 @@ DBG_DUMP_LBUF	MACRO
 	ENDM
 
 ;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-PUTS	PSHS	D, X
-	;S+0=>D
-	;S+2=>X
-	;S+4=>RETADDR
-	LDX	4, S
-PUTS_LOOP	LDA	, X+
-	BEQ	PUTS_E
-	LBSR	C_PUTCH
-	BRA	PUTS_LOOP
-	;ここでXは終端文字の後ろになっているはず
-PUTS_E	STX	4, S
-	PULS	D, X, PC
-;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-NEWLINE	PSHS	D, X
+NEWLINE	PSHS	CC, D, X
 	LBSR	C_NEWLINE
-	PULS	D, X, PC
+	PULS	CC, D, X, PC
 ;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-PUTHEX_D	PSHS	D, X
+PUTHEX_D	PSHS	CC, D, X
 	LBSR	PUTHEX_W
-	PULS	D, X, PC
+	PULS	CC, D, X, PC
 ;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-PUTHEX_A	PSHS	D, X
+PUTHEX_A	PSHS	CC, D, X
 	LBSR	PUTHEX_B
-	PULS	D, X, PC
+	PULS	CC, D, X, PC
 ;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 PUTHEX_W
 	PSHS	B
@@ -86,32 +79,67 @@ PUTHEX_4BIT	ADDA	#$90
 	DAA
 	JMP	C_PUTCHAR
 ;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-PRINT_REGS	PSHS	D, X, Y, U
+PUTS	PSHS	CC, D, X
+	;S+0=>D
+	;S+2=>X
+	;S+4=>RETADDR
+	LDX	5, S
+PUTS_LOOP	LDA	, X+
+	BEQ	PUTS_E
+	LBSR	C_PUTCH
+	BRA	PUTS_LOOP
+	;ここでXは終端文字の後ろになっているはず
+PUTS_E	STX	5, S
+	PULS	CC, D, X, PC
+;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+PUTLINE	PSHS	CC, D, X
+	;S+0=>D
+	;S+2=>X
+	;S+4=>RETADDR
+	LDX	5, S
+PUTLINE_LOOP	LDA	, X+
+	BEQ	PUTLINE_E
+	LBSR	C_PUTCH
+	BRA	PUTLINE_LOOP
+	;ここでXは終端文字の後ろになっているはず
+PUTLINE_E	STX	5, S
+	LBSR	NEWLINE
+	PULS	CC, D, X, PC
+;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+PRINT_REGS	PSHS	CC, D, X, Y, U
 	;S+0=>D
 	;S+2=>X
 	;S+4=>Y
 	;S+6=>U
 	;S+8=>RETADDR
-	LBSR	PUTS
-	FCC	CR, "D:",0
-	LBSR	PUTHEX_D
-	LBSR	PUTS
+	BSR	PUTS
+	FCC	"CC:",0
+	LDA	, S
+	BSR	PUTHEX_A
+	BSR	PUTS
+	FCC	" A:",0
+	LDA	1, S
+	BSR	PUTHEX_A
+	BSR	PUTS
+	FCC	" B:",0
+	LDA	2, S
+	BSR	PUTHEX_A
+	BSR	PUTS
 	FCC	" X:",0
-	LDD	2, S
-	LBSR	PUTHEX_D
-	LBSR	PUTS
+	LDD	3, S
+	BSR	PUTHEX_D
+	BSR	PUTS
 	FCC	" Y:",0
-	LDD	4, S
+	LDD	5, S
 	LBSR	PUTHEX_D
 	LBSR	PUTS
 	FCC	" U:",0
-	LDD	6, S
+	LDD	7, S
 	LBSR	PUTHEX_D
-	LBSR	PUTS
-	FCC	CR,0
-	PULS	D, X, Y, U, PC
+	LBSR	C_NEWLINE
+	PULS	CC, D, X, Y, U, PC
 ;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-DUMP_IBUF	PSHS	D, X
+DUMP_IBUF	PSHS	CC, D, X
 	BSR	PUTS
 	FCC	CR, "*IBUF*", 0
 	LDX	#IBUF
@@ -133,9 +161,9 @@ DUMP_IBUF_L	BITB	#$1F
 	CMPB	#80
 	BLO	DUMP_IBUF_L
 	LBSR	C_NEWLINE
-	PULS	D, X, PC
+	PULS	CC, D, X, PC
 ;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-DUMP_LIST	PSHS	D, X
+DUMP_LIST	PSHS	CC, D, X
 	LBSR	PUTS
 	FCC	CR, "*LIST BUF*", 0
 	LBSR	PUTS
@@ -156,17 +184,17 @@ DUMP_LIST_L	BITB	#$1F
 	DBG_PUTC	' '
 	PULS	B
 	INCB
-	CMPB	#64
+	CMPB	#96
 	BLO	DUMP_LIST_L
 	LBSR	C_NEWLINE
-	PULS	D, X, PC
+	PULS	CC, D, X, PC
 ;::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-DUMP_LBUF	PSHS	D, X
+DUMP_LBUF	PSHS	CC, D, X
 	LBSR	PUTS
 	FCC	CR,"*LBUF*", 0
 	LDX	#LBUF
 	BSR	DUMP
-	PULS	D, X, PC
+	PULS	CC, D, X, PC
 DUMP	CLRB
 DUMP_LOOP	TST	, X
 	BEQ	2F
