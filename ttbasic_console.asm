@@ -96,15 +96,14 @@ C_PUTNUM_PRINT	LEAX	, U
 ;---------------------------------------------------------------------------
 ;数値を入力する
 ;Called by only INPUT statement
-;OUT D : 値
-;	use	value1
+;	OUT	D	入力値 : 値
 ;---------------------------------------------------------------------------
 C_GETNUM
 	PSHS	X, Y
 	CLRB		;LEN
 	CLR	SIGN
 	CLR	ERR_CODE
-	LDU	#PBUF
+	LDY	#PBUF
 GETNUM_LOOP
 	LBSR	C_GETCH
 	CMPA	#KEY_ENTER
@@ -142,7 +141,8 @@ GETNUM_BS	TSTB
 	DECB
 	LBSR	C_PUT_BS
 	BRA	GETNUM_LOOP
-
+	;-----------------------------------------------------------
+	;入力文字列を数値に変換する
 GETNUM_END	LBSR	C_NEWLINE
 	CLR	B, Y	;終端を置く
 	;数値に変換
@@ -156,19 +156,6 @@ GETNUM_END	LBSR	C_NEWLINE
 GETNUM_NEXT_C	LEAY	1, Y
 GETNUM_TO_INT	LBSR	STR_TO_INT
 	BNE	GETNUM_ERR_VOF
-;1	LEAU	1, Y	;符号ありの場合は2文字目以降を対象
-;2	LDX	#0	;値をクリア
-;GETNUM_LOOP2	STX	VALUE1
-;	LDA	, Y+
-;	BEQ	GETNUM_LOOP2_E
-;	LBSR	MUL_X_BY_10_ADD_A
-;	CMPX	VALUE1
-;	BHS	GETNUM_LOOP2
-;GETNUM_ERR_VOF
-;	LDB	#ERR_VOF	;前回より小さい場合はエラー
-;	STB	ERR_CODE
-;
-;GETNUM_LOOP2_E
 	TST	SIGN
 	BEQ	1F
 	;負の値に変換

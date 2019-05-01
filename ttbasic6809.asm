@@ -474,7 +474,7 @@ IEXP_LOOP
 	LDB	, Y
 	SUBB	#I_NEQ
 	BLO	IEXP_END
-	CMPB	#(I_GTE-I_NEQ)
+	CMPB	#(I_COMPARE_END-I_COMPARE_START)
 	BHI	IEXP_END
 	;::::::::::debug :::::::::::::
 	;DBG_PUTLINE	"IEXP LOOP"
@@ -485,11 +485,17 @@ IEXP_LOOP
 	ABX
 	LEAY	1, Y	;中間コードポインタを次へ進める
 	LBSR	IPLUS
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"COMPARE"
+	;PSHS	CC, D
+	;LDD	3, S
+	;DBG_PUTHEX_D
+	;DBG_PUTS	":"
+	;PULS	CC, D
+	;DBG_PUTHEX_D
+	;DBG_NEWLINE
+	;::::::::::debug :::::::::::::
 	CMPD	, S	;スタック上の現在値と比較
-	;::::::::::debug :::::::::::::
-	;DBG_PUTLINE	"IEXP COMPARE"
-	;DBG_PRINT_REGS
-	;::::::::::debug :::::::::::::
 	JMP	[, X]
 IEXP_END	PULS	D
 	;::::::::::debug :::::::::::::
@@ -502,15 +508,21 @@ IEXP_TBL
 	FDB	IEXP_NEQ
 	FDB	IEXP_EQ
 	FDB	IEXP_SHARP
+	FDB	IEXP_LE
 	FDB	IEXP_LT
-	FDB	IEXP_LTE
+	FDB	IEXP_GE
 	FDB	IEXP_GT
-	FDB	IEXP_GTE
 IEXP_FALSE
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"FALSE"
+	;::::::::::debug :::::::::::::
 	LDD	#0
 	STD	, S	;スタック上の現在値に保存
 	BRA	IEXP_LOOP
 IEXP_TRUE
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"TRUE"
+	;::::::::::debug :::::::::::::
 	LDD	#1
 	STD	, S	;スタック上の現在値に保存
 	BRA	IEXP_LOOP
@@ -518,7 +530,6 @@ IEXP_TRUE
 IEXP_EQ
 	;::::::::::debug :::::::::::::
 	;DBG_PUTLINE	"IEXP_EQ"
-	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
 	BEQ	IEXP_TRUE
 	BRA	IEXP_FALSE
@@ -527,25 +538,36 @@ IEXP_SHARP
 IEXP_NEQ
 	;::::::::::debug :::::::::::::
 	;DBG_PUTLINE	"IEXP_NOT EQ"
-	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
 	BNE	IEXP_TRUE
 	BRA	IEXP_FALSE
 	;-----------------------------------------------------------
 IEXP_LT
-	BLO	IEXP_TRUE
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXP LT"
+	;::::::::::debug :::::::::::::
+	BGT	IEXP_TRUE
 	BRA	IEXP_FALSE
 	;-----------------------------------------------------------
-IEXP_LTE
-	BLS	IEXP_TRUE
+IEXP_LE
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXP LE"
+	;::::::::::debug :::::::::::::
+	BGE	IEXP_TRUE
 	BRA	IEXP_FALSE
 	;-----------------------------------------------------------
 IEXP_GT
-	BHI	IEXP_TRUE
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXP GT"
+	;::::::::::debug :::::::::::::
+	BLT	IEXP_TRUE
 	BRA	IEXP_FALSE
 	;-----------------------------------------------------------
-IEXP_GTE
-	BHS	IEXP_TRUE
+IEXP_GE
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXP GE"
+	;::::::::::debug :::::::::::::
+	BLE	IEXP_TRUE
 	BRA	IEXP_FALSE
 	;-----------------------------------------------------------
 
@@ -625,8 +647,9 @@ IPRINT_NEXT
 	STB	ERR_CODE
 	PULS	D, X, U, PC
 IPRINT_COMMA	;コンマがある場合
-	;次の中間コードを取得し中間コードポインタを次へ進める
-	LDA	, Y+
+	LEAY	1, Y	;中間コードポインタを次へ進める
+	;次の中間コードを取得する
+	LDA	, Y
 	BSR	IS_SEMI_OR_EOL
 	BNE	IPRINT_LOOP	;文末以外はループを継続
 	;もし文末なら終了
@@ -650,9 +673,13 @@ IS_SEMI_OR_EOL	CMPA	#I_SEMI
 ;---------------------------------------------------------------------------
 IINPUT
 	PSHS	D, X, U
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IINPUT"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	PSHS	A	;プロンプト表示フラグ
 IINPUT_LOOP
-	CLR	A	;まだプロンプトを表示していない
-	PSHS	A
+	CLR	, S	;まだプロンプトを表示していない
 	LDA	, Y
 	CMPA	#I_STR
 	BNE	1F
@@ -673,12 +700,15 @@ IINPUT_VAR	;変数の場合
 1	LBSR	C_GETNUM	;D=値
 	TST	ERR_CODE
 	BNE	IINPUT_END	;エラー
-	TFR	D, U	;Y=値
-	LDA	, Y+
-	SUBA	#I_VAR
+	TFR	D, U	;U=値
+	LDA	, Y+	;変数番号を取得
 	ASLA
 	LDX	#VAR
 	STU	A, X	;変数へ代入
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IINPUT_VAR"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	BRA	IINPUT_CONTUNUE_CHK
 	;-----------------------------------------------------------
 IINPUT_ARRAY
@@ -692,9 +722,13 @@ IINPUT_ARRAY
 	BNE	1F	;プロンプト表示済み
 	BSR	IINPUT_PROMPT_ARR
 	;保存先を計算
-1	LDX	#ARR
-	ABX
-	ABX
+1	ASLB
+	ROLA
+	PSHS	D
+	LDD	#ARR
+	ADDD	, S	;保存先
+	PULS	X
+	TFR	D, X
 	LBSR	C_GETNUM
 	TST	ERR_CODE
 	BNE	IINPUT_END
@@ -711,11 +745,15 @@ IINPUT_CONTUNUE_CHK
 	BSR	IS_SEMI_OR_EOL
 	BNE	IINPUT_ERR_SYNTAX
 IINPUT_END
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IINPUT END"
+	;::::::::::debug :::::::::::::
+	PULS	A	;プロンプト表示フラグの削除
 	PULS	D, X, U, PC
 	;-----------------------------------------------------------
 IINPUT_COMMA
 	LEAY	1, Y	;//中間コードポインタを次へ進める
-	BRA	IINPUT_LOOP
+	LBRA	IINPUT_LOOP
 	;-----------------------------------------------------------
 	;エラー
 IINPUT_ERR_SOR	LDB	#ERR_SOR
@@ -723,18 +761,19 @@ IINPUT_ERR_SOR	LDB	#ERR_SOR
 IINPUT_ERR_SYNTAX
 	LDB	#ERR_SYNTAX
 1	STB	ERR_CODE
+	PULS	A	;プロンプト表示フラグの削除
 	PULS	D, X, U, PC
 	;-----------------------------------------------------------
 	;変数のプロンプトを表示する
 IINPUT_PROMPT_VAR
 	PSHS	A
-	LDA	, Y+
+	LDA	, Y
 	ADDA	#'A'
 	LBSR	C_PUTCH
 	LDA	#':'
 	LBSR	C_PUTCH
 	PULS	A
-	NEG	, S	;プロンプトを表示した
+	NEG	2, S	;プロンプトを表示した
 	RTS
 	;-----------------------------------------------------------
 	;配列のプロンプトを表示する
@@ -750,7 +789,7 @@ IINPUT_PROMPT_ARR
 	LBSR	C_PUTCH
 	LDA	#':'
 	LBSR	C_PUTCH
-	NEG	, S	;プロンプトを表示した
+	NEG	2, S	;プロンプトを表示した
 	RTS
 	;-----------------------------------------------------------
 	;文字列のプロンプトを表示
@@ -844,18 +883,23 @@ IARRAY_ERR_VWOEQ
 ; OUT	Y : CIP
 ;---------------------------------------------------------------------------
 ILET
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"ILET"
+	;::::::::::debug :::::::::::::
 	LDA	, Y
-	CMPA	I_VAR
+	CMPA	#I_VAR
 	BEQ	ILET_VAR
-	CMPA	I_ARRAY
+	CMPA	#I_ARRAY
 	BEQ	ILET_ARRAY
 	;エラー
 	LDB	#ERR_LETWOV
 	STB	ERR_CODE
 	RTS
-ILET_VAR	LBSR	IVAR
+ILET_VAR	LEAY	1, Y	;中間コードポインタを次へ進める
+	LBSR	IVAR
 	RTS
-ILET_ARRAY	BSR	IARRAY
+ILET_ARRAY	LEAY	1, Y	;中間コードポインタを次へ進める
+	BSR	IARRAY
 	RTS
 
 
