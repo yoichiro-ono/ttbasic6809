@@ -61,6 +61,8 @@ GETRND
 ;		D	œ”
 ;	OUT	X	¤(quotient)
 ;		D	è—](remainder)
+;see https://perso.b2b2c.ca/~sarrazip/dev/cmoc.html
+;DIV16.asm
 ;---------------------------------------------------------------------------
 DIV16	PSHS	X,B,A
 	LDB	#16
@@ -95,6 +97,8 @@ D16030	ROL	1,S		;shift carry into quotient
 ; 	IN	D	”íæ”(multiplicand)
 ;		X	æ”(multiplier)
 ;	OUT	D	Ï(product)
+;see https://perso.b2b2c.ca/~sarrazip/dev/cmoc.html
+;MUL16.asm
 ;---------------------------------------------------------------------------
 MUL16	PSHS	U,X,B,A	;U pushed to create 2 temp bytes at 4,S
 	LDB	3,S	;low byte of original X

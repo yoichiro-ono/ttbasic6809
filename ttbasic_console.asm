@@ -5,27 +5,37 @@ C_WAIT_ACIA	PSHS	A
 WRWAIT	LDA	USTAT
 	BITA	#2
 	BEQ	WRWAIT
-	PULS	A
-	RTS
+	PULS	A, PC
 ;---------------------------------------------------------------------------
 ;GET KEY
 ;---------------------------------------------------------------------------
-C_GETCHAR	BSR	C_KBHIT
+C_GETCHAR
+	IF	RX_BUFFER_SIZE!=0
+	JSR	RX_GET_DATA
+	ELSE
+	BSR	C_KBHIT
 	BEQ	1F
 	LDA	URECV
+	ENDIF
 	ANDA	#$7F
 1	RTS
 ;---------------------------------------------------------------------------
 ;C_PUTCHAR
 ;---------------------------------------------------------------------------
-C_PUTCHAR	BSR	C_WAIT_ACIA
+C_PUTCHAR
+	BSR	C_WAIT_ACIA
 	STA	USEND
 	RTS
 ;---------------------------------------------------------------------------
 ;C_KBHIT
 ;---------------------------------------------------------------------------
-C_KBHIT	LDA	USTAT
+C_KBHIT
+	IF	RX_BUFFER_SIZE!=0
+	JSR	RING_DATA_EXISTS
+	ELSE
+	LDA	USTAT
 	ANDA	#1
+	ENDIF
 	RTS
 ;---------------------------------------------------------------------------
 ;êîílÇï\é¶Ç∑ÇÈ

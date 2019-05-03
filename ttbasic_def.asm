@@ -13,8 +13,9 @@ USEND	EQU	UART+1
 USTAT	EQU	UART
 UCTRL	EQU	UART
 
-USE_RX_BUFFER	EQU	0	;0:受信バッファを使用しない
-			;1:受信バッファを使用する(フロー制御あり)
+RX_BUFFER_SIZE	EQU	64	;0:受信バッファを使用しない
+			;>0:受信バッファを使用する(フロー制御あり)
+			;16以上の2^Nの値を指定すること
 
 	IF	RAM_SIZE==32
 STACK_TOP	EQU	$8000
@@ -50,5 +51,8 @@ SIZE_NEST_LSTK	EQU	9	;clp(2byte), cip(2byte),to(2byte),step(2byte),var(1byte)
 NEST_LSTK	EQU	3
 SIZE_LSTK	EQU	(SIZE_NEST_LSTK*NEST_LSTK)	;FOR stack size(9/nest)
 
+	IF	RX_BUFFER_SIZE!=0
+RTS_HI	EQU	$D5
+RTS_LO	EQU	$95
+	ENDIF
 
-RTS_LOW	EQU	$15

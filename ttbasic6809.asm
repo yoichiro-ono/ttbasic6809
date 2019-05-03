@@ -29,10 +29,17 @@ VALUE1	RMB	2	;値
 VALUE2	RMB	2	;値
 
 VAR	RMB	26*2	;変数領域(Variable area)
+	IF	RX_BUFFER_SIZE!=0
+RX_BUF_W_PTR	RMB	1
+RX_BUF_CNT	RMB	1
+	ENDIF
 LBUF	RMB	SIZE_LINE	;Command line buffer
 IBUF	RMB	SIZE_IBUF	;i-code conversion buffer
 ARR	RMB	SIZE_ARRY*2	;Array area
-	ORG	$1000
+	IF	RX_BUFFER_SIZE!=0
+RX_BUFFER	RMB	RX_BUFFER_SIZE
+	ENDIF
+
 LISTBUF	RMB	SIZE_LIST	;List area
 
 
@@ -55,11 +62,77 @@ SWI2	;ソフトウェア割り込み２
 FIRQ	;高速割り込み
 	RTI
 IRQ	;通常割り込み
+	IF	RX_BUFFER_SIZE!=0
+	LDA	USTAT
+	ASLA		;IRQ ?
+	BCC	RTIIRQ
+	LSRA
+	LSRA		;RDRF ?
+	BCC	ERRPRC
+	LDA	URECV	;READ RX DATA
+	;PUT RX BUFFER
+	LDX	#RX_BUFFER
+	LDB	RX_BUF_W_PTR
+	STA	B, X
+	INCB
+	ANDB	#(RX_BUFFER_SIZE-1)
+	STB	RX_BUF_W_PTR
+
+	LDA	RX_BUF_CNT
+	CMPA	#RX_BUFFER_SIZE
+	BEQ	1F
+	INC	RX_BUF_CNT
+1	;FLOW CONTROL
+	CMPA	#(RX_BUFFER_SIZE-8)
+	BLS	RTIIRQ
+	LDB	#RTS_HI
+	STB	UCTRL
 	RTI
+ERRPRC	LDA	URECV	;DUMMY READ
+	ENDIF
+RTIIRQ	RTI
 SWI	;ソフトウェア割り込み１
 	RTI
 NMI	;マスク不可割り込み
 	RTI
+
+	IF	RX_BUFFER_SIZE!=0
+;-------------------------------------------------
+; RX BUFFER DATA EXISTS
+; OUT
+;   ZF:DATA NOT EXISTS:1
+;      DATA EXISTS    :0
+;-------------------------------------------------
+RING_DATA_EXISTS
+	PSHS	A
+	TST	RX_BUF_CNT
+	PULS	A, PC
+;-------------------------------------------------
+; RX BUFFER GET DATA
+; OUT
+;   A :DATA
+;   ZF:DATA NOT EXISTS : 1
+;      DATA EXISTS     : 0
+;-------------------------------------------------
+RX_GET_DATA
+	PSHS	B, X
+	LDX	#RX_BUFFER
+	CLRA
+	TST	RX_BUF_CNT
+	BEQ	1F
+	LDB	RX_BUF_W_PTR
+	SUBB	RX_BUF_CNT
+	ANDB	#(RX_BUFFER_SIZE-1)
+	LDA	B, X
+	DEC	RX_BUF_CNT
+	BNE	2F
+	LDB	#RTS_LO
+	STB	UCTRL
+2
+	CLR_ZF
+1
+	PULS	B, X, PC
+	ENDIF
 
 ;---------------------------------------------------------------------------
 ;リセット処理
@@ -73,7 +146,18 @@ RESET	;リセット
 	;乱数初期値の設定
 	LDD	#12345
 	STD	RANDOM_SEED
-
+	;ACIAの初期化
+	IF	RX_BUFFER_SIZE!=0
+	SEI
+	CLR	RX_BUF_W_PTR
+	CLR	RX_BUF_CNT
+	LDA	#RTS_LO	;RTS:Lo
+	STA	UCTRL
+	CLI
+	ELSE
+	LDA	#$15
+	STA	UCTRL
+	ENDIF
 	JMP	BASIC
 
 ;---------------------------------------------------------------------------
@@ -100,6 +184,9 @@ GET_PARAM
 	;::::::::::debug :::::::::::::
 	LDA	, Y
 	;"("でない場合はエラー
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	CMPA	#I_OPEN
 	BNE	GET_PARAM_ERR
 	LEAY	1, Y	;中間コードポインタを次へ進める
@@ -115,6 +202,9 @@ GET_PARAM
 	PSHS	D
 	;")"でない場合はエラー
 	LDA	, Y
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	CMPA	#I_CLOSE
 	PULS	D
 	BNE	GET_PARAM_ERR
@@ -129,8 +219,35 @@ GET_PARAM
 1	LDD	#0
 	RTS
 GET_PARAM_ERR
+	;::::::::::debug :::::::::::::
+	DBG_PUTLINE	"GET_PARAM_ERR"
+	;::::::::::debug :::::::::::::
 	LDB	#ERR_PAREN
 	STB	ERR_CODE
+	RTS
+;---------------------------------------------------------------------------
+; Value  address
+;	IN	B	Value No
+;	OUT	X	Value Address
+;---------------------------------------------------------------------------
+VALUE_ADDRESS
+	LDX	#VAR
+	ASLB
+	ABX
+	RTS
+;---------------------------------------------------------------------------
+; Array address
+;	IN	D	Array Index
+;	OUT	X	Array Address
+;---------------------------------------------------------------------------
+ARRAY_ADDRESS
+	ASLB
+	ROLB
+	PSHS	D
+	LDD	#ARR
+	ADDD	, S
+	LEAS	2, S
+	TFR	D, X
 	RTS
 ;---------------------------------------------------------------------------
 ; Get value
@@ -241,9 +358,7 @@ IVALUE_VAR	;変数番号を取得する
 	;::::::::::debug :::::::::::::
 	LEAY	1, Y
 	LDB	, Y+
-	LDX	#VAR
-	ASLB
-	ABX
+	JSR	VALUE_ADDRESS
 	;::::::::::debug :::::::::::::
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
@@ -260,13 +375,23 @@ IVALUE_OPEN	;括弧の値の取得
 
 	;-----------------------------------------------------------
 IVALUE_ARRAY	;配列の値の取得
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IVALUE_ARRAY"
+	;::::::::::debug :::::::::::::
+	LEAY	1, Y	;中間コードポインタを次へ進める
 	LBSR	GET_PARAM
 	TST	ERR_CODE
-	BNE	IVALUE_ARRAY_ERR	;エラー発生時は終了
-	CMPD	#ARR
-	ASLB
-	ABX
+	BNE	IVALUE_END	;エラー発生時は終了
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	CMPD	#SIZE_ARRY
+	BHS	IVALUE_ARRAY_ERR
+	JSR	ARRAY_ADDRESS
 	LDD	, X
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	PULS	X, PC
 
 	;-----------------------------------------------------------
@@ -701,10 +826,9 @@ IINPUT_VAR	;変数の場合
 	TST	ERR_CODE
 	BNE	IINPUT_END	;エラー
 	TFR	D, U	;U=値
-	LDA	, Y+	;変数番号を取得
-	ASLA
-	LDX	#VAR
-	STU	A, X	;変数へ代入
+	LDB	, Y+	;変数番号を取得
+	JSR	VALUE_ADDRESS
+	STU	, X	;変数へ代入
 	;::::::::::debug :::::::::::::
 	;DBG_PUTLINE	"IINPUT_VAR"
 	;DBG_PRINT_REGS
@@ -722,13 +846,8 @@ IINPUT_ARRAY
 	BNE	1F	;プロンプト表示済み
 	BSR	IINPUT_PROMPT_ARR
 	;保存先を計算
-1	ASLB
-	ROLA
-	PSHS	D
-	LDD	#ARR
-	ADDD	, S	;保存先
-	PULS	X
-	TFR	D, X
+1	
+	JSR	ARRAY_ADDRESS
 	LBSR	C_GETNUM
 	TST	ERR_CODE
 	BNE	IINPUT_END
@@ -817,9 +936,7 @@ IVAR
 	PSHS	D, X
 	LDB	, Y+	;変数番号を取得して次に進む
 	;SUBB	#I_VAR
-	LDX	#VAR
-	ASLB
-	ABX
+	JSR	VALUE_ADDRESS
 	LDA	, Y
 	CMPA	#I_EQ	;「=」以外はエラー
 	BNE	IVAR_ERR
@@ -852,11 +969,9 @@ IARRAY
 	LBSR	GET_PARAM
 	TST	ERR_CODE
 	BNE	IARRAY_END
-	CMPB	#SIZE_ARRY
+	CMPD	#SIZE_ARRY
 	BHS	IARRAY_ERR_SOR
-	LDX	#ARR
-	ASLB
-	ABX
+	JSR	ARRAY_ADDRESS
 	LDA	, Y
 	CMPA	#I_EQ	;「=」以外はエラー
 	BNE	IARRAY_ERR_VWOEQ
@@ -865,6 +980,10 @@ IARRAY
 	LBSR	IEXP
 	TST	ERR_CODE
 	BNE	IARRAY_END
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IARRAY SET"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	STD	, X
 IARRAY_END
 	PULS	D, X, PC
@@ -1031,16 +1150,24 @@ IEXE_IF
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
 	CMPD	#0
-	BEQ	IEXE_REM	;偽の場合の処理はREMと同じ
+	BEQ	IEXE_IF_FALSE	;偽の場合の処理はREMと同じ
 	;真の場合は次の文を実行する
 	;::::::::::debug :::::::::::::
-	;DBG_PUTLINE	"IEXE_IF END"
+	;DBG_PUTLINE	"IF TRUE"
 	;::::::::::debug :::::::::::::
 	RTS
 
-IEXE_IF_ERR	LDB	#ERR_IFWOC
-	STB	ERR_CODE
+IEXE_IF_ERR	
+	;::::::::::debug :::::::::::::
+	DBG_PUTLINE	"IF ERR"
+	;::::::::::debug :::::::::::::
+	;LDB	#ERR_IFWOC
+	;STB	ERR_CODE
 	RTS
+IEXE_IF_FALSE
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IF FALSE"
+	;::::::::::debug :::::::::::::
 	;-----------------------------------------------------------
 IEXE_REM	;I_EOLに達するまで中間コードポインタを次へ進める
 	;::::::::::debug :::::::::::::
@@ -1177,6 +1304,14 @@ IEXE_FOR
 	TST	ERR_CODE
 	LBNE	IEXE_FOR_END	;エラー発生時は終了
 	PSHS	A	;変数のインデックスを保存
+	;::::::::::debug :::::::::::::
+	;TFR	A, B
+	;JSR	VALUE_ADDRESS
+	;LDD	, X
+	;DBG_PUTS	"FROM "
+	;DBG_PUTHEX_D
+	;DBG_NEWLINE
+	;::::::::::debug :::::::::::::
 	;終了値を取得
 	LDA	, Y
 	CMPA	#I_TO	;TOがなければエラー
@@ -1197,24 +1332,33 @@ IEXE_FOR
 	BRA	FOR_CHK_STEP
 FOR_NO_STEP	LDD	#1	;増分=1
 FOR_CHK_STEP	;増分のチェック
+	PSHS	D	;増分を保存
+	CMPD	#0
+	BMI	MINUS_STEP	;増分<0
 	;::::::::::debug :::::::::::::
 	;DBG_PUTLINE	"STEP"
 	;DBG_PRINT_REGS
 	;::::::::::debug :::::::::::::
-	PSHS	D	;増分を保存
-	CMPD	#0
-	BMI	MINUS_STEP	;増分<0
 	;増分>=0
 	LBSR	NEGD
 	ADDD	#32767
 	;終了値と比較し、終了値にならない可能性がある場合はエラー
 	CMPD	2, S
-	BLO	IEXE_FOR_ERR_VOF
+	BLT	IEXE_FOR_ERR_VOF
 	BRA	STEP_OK
-MINUS_STEP	ADDD	#-32767
+MINUS_STEP	
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"MINUS_STEP"
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
+	LBSR	NEGD
+	ADDD	#-32767
+	;::::::::::debug :::::::::::::
+	;DBG_PRINT_REGS
+	;::::::::::debug :::::::::::::
 	;終了値と比較し、終了値にならない可能性がある場合はエラー
 	CMPD	2, S
-	BHI	IEXE_FOR_ERR_VOF
+	BGE	IEXE_FOR_ERR_VOF
 STEP_OK	;スタックチェック
 	;::::::::::debug :::::::::::::
 	;DBG_PUTLINE	"STEP OK"
@@ -1242,13 +1386,13 @@ STEP_OK	;スタックチェック
 	STX	, U++	;終了値を退避
 	STD	, U++	;増分を退避
 	;::::::::::debug :::::::::::::
-	DBG_PUTS	"FOR TO "
-	LDD	-4, U
-	DBG_PUTHEX_D
-	DBG_PUTS	" STEP "
-	LDD	-2, U
-	DBG_PUTHEX_D
-	DBG_NEWLINE
+	;DBG_PUTS	"FOR TO "
+	;LDD	-4, U
+	;DBG_PUTHEX_D
+	;DBG_PUTS	" STEP "
+	;LDD	-2, U
+	;DBG_PUTHEX_D
+	;DBG_NEWLINE
 	;::::::::::debug :::::::::::::
 	PULS	A
 	STA	, U+	;変数インデックスを退避
@@ -1262,6 +1406,9 @@ IEXE_FOR_ERR_FORWOTO
 	LDB	#ERR_FORWOTO
 	BRA	FOR__ERR_END
 IEXE_FOR_ERR_VOF
+	;::::::::::debug :::::::::::::
+	DBG_PUTLINE	"IEXE_FOR_ERR_VOF"
+	;::::::::::debug :::::::::::::
 	PULS	D, X
 	PULS	A
 	LDB	#ERR_VOF
@@ -1300,9 +1447,7 @@ IEXE_NEXT
 	;NEXTの後ろの変数と比較
 	CMPB	, Y+	;一致しなかったらエラー
 	BNE	IEXE_NEXT_ERR_NEXTUM
-	LDX	#VAR
-	ASLB
-	ABX		;X : 変数へのポインタ
+	JSR	VALUE_ADDRESS
 	;増分を取得
 	LDD	-3, U
 	ADDD	, X
@@ -1410,7 +1555,7 @@ IRUN
 	;DBG_PUTS	"IRUN START"
 	;DBG_PRINT_REGS
 	;DBG_NEWLINE
-	DBG_DUMP_LIST
+	;DBG_DUMP_LIST
 	;::::::::::debug :::::::::::::
 	CLR	GSTKI	;GOSUBスタックインデックスの初期化
 	CLR	LSTKI	;FORスタックインデックスの初期化
