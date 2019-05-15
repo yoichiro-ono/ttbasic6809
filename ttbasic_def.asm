@@ -1,19 +1,19 @@
-DEBUG_ENABLE	EQU	1	;デバッグモジュール有効
-;DEBUG_ENABLE	EQU	0	;デバッグモジュール無効
+;DEBUG_ENABLE	EQU	1	;デバッグモジュール有効
+DEBUG_ENABLE	EQU	0	;デバッグモジュール無効
 
-;RAM_SIZE	EQU	8	;8K RAM の場合
-RAM_SIZE	EQU	32	;32K RAM の場合
+RAM_SIZE	EQU	8	;8K RAM の場合
+;RAM_SIZE	EQU	32	;32K RAM の場合
 ;RAM_SIZE	EQU	48	;48K RAM の場合
 
-;UART	EQU	$8018
+UART	EQU	$8018
 ;UART	EQU	$afd0
-UART	EQU	$C008
+;UART	EQU	$C008
 URECV	EQU	UART+1
 USEND	EQU	UART+1
 USTAT	EQU	UART
 UCTRL	EQU	UART
 
-RX_BUFFER_SIZE	EQU	64	;0:受信バッファを使用しない
+RX_BUFFER_SIZE	EQU	128	;0:受信バッファを使用しない
 			;>0:受信バッファを使用する(フロー制御あり)
 			;16以上の2^Nの値を指定すること
 
@@ -45,14 +45,16 @@ SIZE_LINE	EQU	160	;Command line buffer length + NULL
 SIZE_IBUF	EQU	160	;i-code conversion buffer size
 SIZE_ARRY	EQU	128	;Array area size
 SIZE_NEST_GSTK	EQU	5	;clp(2byte), cip(2byte), lstki(1byte)
-NEST_GSTK	EQU	3
+NEST_GSTK	EQU	5
 SIZE_GSTK	EQU	(SIZE_NEST_GSTK*NEST_GSTK)	;GOSUB stack size(5/nest)
 SIZE_NEST_LSTK	EQU	9	;clp(2byte), cip(2byte),to(2byte),step(2byte),var(1byte)
-NEST_LSTK	EQU	3
+NEST_LSTK	EQU	5
 SIZE_LSTK	EQU	(SIZE_NEST_LSTK*NEST_LSTK)	;FOR stack size(9/nest)
 
+ACIA_RESET	EQU	$03
+ACIA_DEFAULT	EQU	$15	;clock/16,data 8bit, stop 1bit
 	IF	RX_BUFFER_SIZE!=0
-RTS_HI	EQU	$D5
-RTS_LO	EQU	$95
+ACIA_RTS_HI	EQU	$D5
+ACIA_RTS_LO	EQU	$95
 	ENDIF
 

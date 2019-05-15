@@ -34,7 +34,7 @@ C_KBHIT
 	JSR	RING_DATA_EXISTS
 	ELSE
 	LDA	USTAT
-	ANDA	#1
+	BITA	#1
 	ENDIF
 	RTS
 ;---------------------------------------------------------------------------
@@ -48,9 +48,6 @@ C_PUTNUM
 	;+2:X(+3:WLEN)
 	;+4:U
 	
-;	;::::::::::debug :::::::::::::
-;	LBSR	PRINT_REG
-;	;::::::::::debug :::::::::::::
 	CLR	SIGN	;SIGN
 	CLR	WLEN	;現在の桁数
 	LDU	#(PBUF+9)
@@ -61,18 +58,10 @@ C_PUTNUM
 	INC	SIGN	;符号ありにセット
 	LBSR	NEGD	;正数に変換
 C_PUTNUM_PLUS	STD	VALUE1
-;	;::::::::::debug :::::::::::::
-;	LBSR	PRINT_REG
-;	LBSR	PUTS
-;	FCC	"DIV",CR,0
-;	;::::::::::debug :::::::::::::
 	TFR	D, X
 C_PUTNUM_LOOP1	LDD	#10
 	LBSR	DIV16	;X=X / D 
 			;D=X % D
-;	;::::::::::debug :::::::::::::
-;	LBSR	PRINT_REG
-;	;::::::::::debug :::::::::::::
 	STX	VALUE1
 	ADDB	#'0'
 	STB	, -U
@@ -86,11 +75,6 @@ C_PUTNUM_LOOP1	LDD	#10
 	INC	WLEN
 C_PUTNUM_NO_SIGN
 	LDA	WLEN
-;	;::::::::::debug :::::::::::::
-;	LBSR	PUTS
-;	FCC	"WLEN",CR,0
-;	LBSR	PRINT_REG
-;	;::::::::::debug :::::::::::::
 	LDB	#' '
 C_PUTNUM_LOOP2	;指定桁数になるまで空白を付与する
 	CMPA	3, S

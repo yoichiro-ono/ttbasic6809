@@ -16,9 +16,7 @@
 RANDOM_SEED	RMB	2	;乱数
 CLP	RMB	2	;Pointer current line
 GSTKI	RMB	1	;GOSUB stack index
-GSTK	RMB	SIZE_GSTK	;GOSUB stack
 LSTKI	RMB	1	;FOR stack index
-LSTK	RMB	SIZE_LSTK	;FOR stack
 ERR_CODE	RMB	1	;エラーコード
 PBUF	RMB	10	;表示用ワーク
 SIGN	RMB	1	;符号
@@ -33,6 +31,8 @@ VAR	RMB	26*2	;変数領域(Variable area)
 RX_BUF_W_PTR	RMB	1
 RX_BUF_CNT	RMB	1
 	ENDIF
+GSTK	RMB	SIZE_GSTK	;GOSUB stack
+LSTK	RMB	SIZE_LSTK	;FOR stack
 LBUF	RMB	SIZE_LINE	;Command line buffer
 IBUF	RMB	SIZE_IBUF	;i-code conversion buffer
 ARR	RMB	SIZE_ARRY*2	;Array area
@@ -85,7 +85,7 @@ IRQ	;通常割り込み
 1	;FLOW CONTROL
 	CMPA	#(RX_BUFFER_SIZE-8)
 	BLS	RTIIRQ
-	LDB	#RTS_HI
+	LDB	#ACIA_RTS_HI
 	STB	UCTRL
 	RTI
 ERRPRC	LDA	URECV	;DUMMY READ
@@ -104,9 +104,8 @@ NMI	;マスク不可割り込み
 ;      DATA EXISTS    :0
 ;-------------------------------------------------
 RING_DATA_EXISTS
-	PSHS	A
 	TST	RX_BUF_CNT
-	PULS	A, PC
+	RTS
 ;-------------------------------------------------
 ; RX BUFFER GET DATA
 ; OUT
@@ -116,9 +115,9 @@ RING_DATA_EXISTS
 ;-------------------------------------------------
 RX_GET_DATA
 	PSHS	B, X
+	SEI
 	LDX	#RX_BUFFER
-	CLRA
-	TST	RX_BUF_CNT
+	LDA	RX_BUF_CNT
 	BEQ	1F
 	LDB	RX_BUF_W_PTR
 	SUBB	RX_BUF_CNT
@@ -126,11 +125,12 @@ RX_GET_DATA
 	LDA	B, X
 	DEC	RX_BUF_CNT
 	BNE	2F
-	LDB	#RTS_LO
+	LDB	#ACIA_RTS_LO
 	STB	UCTRL
 2
 	CLR_ZF
 1
+	CLI
 	PULS	B, X, PC
 	ENDIF
 
@@ -147,15 +147,17 @@ RESET	;リセット
 	LDD	#12345
 	STD	RANDOM_SEED
 	;ACIAの初期化
+	LDA	#ACIA_RESET	;Master Reset
+	STA	UCTRL
 	IF	RX_BUFFER_SIZE!=0
 	SEI
 	CLR	RX_BUF_W_PTR
 	CLR	RX_BUF_CNT
-	LDA	#RTS_LO	;RTS:Lo
+	LDA	#ACIA_RTS_LO	;RTS:Lo
 	STA	UCTRL
 	CLI
 	ELSE
-	LDA	#$15
+	LDA	#ACIA_DEFAULT	;clock/16,data 8bit, stop 1bit
 	STA	UCTRL
 	ENDIF
 	JMP	BASIC
@@ -220,7 +222,7 @@ GET_PARAM
 	RTS
 GET_PARAM_ERR
 	;::::::::::debug :::::::::::::
-	DBG_PUTLINE	"GET_PARAM_ERR"
+	;DBG_PUTLINE	"GET_PARAM_ERR"
 	;::::::::::debug :::::::::::::
 	LDB	#ERR_PAREN
 	STB	ERR_CODE
@@ -432,14 +434,15 @@ IVALUE_ABS	;ABS
 
 	;-----------------------------------------------------------
 IVALUE_SIZE	;SIZE
-	LEAY	1, Y
+	LEAY	1, Y	;中間コードポインタを次へ進める
 	LDA	, Y
 	CMPA	#I_OPEN
 	BNE	1F
-	LEAY	1, Y
+	LEAY	1, Y	;中間コードポインタを次へ進める
 	LDA	, Y
-	CMPA	#I_CLOSE
+	CMPA	#I_CLOSE	;カッコが対応していなければエラー
 	BNE	IVALUE_SIZE_ERR
+	LEAY	1, Y	;中間コードポインタを次へ進める
 1	LBSR	GET_FREE_SIZE
 	PULS	X, PC
 
@@ -1159,7 +1162,7 @@ IEXE_IF
 
 IEXE_IF_ERR	
 	;::::::::::debug :::::::::::::
-	DBG_PUTLINE	"IF ERR"
+	;DBG_PUTLINE	"IF ERR"
 	;::::::::::debug :::::::::::::
 	;LDB	#ERR_IFWOC
 	;STB	ERR_CODE
@@ -1407,13 +1410,16 @@ IEXE_FOR_ERR_FORWOTO
 	BRA	FOR__ERR_END
 IEXE_FOR_ERR_VOF
 	;::::::::::debug :::::::::::::
-	DBG_PUTLINE	"IEXE_FOR_ERR_VOF"
+	;DBG_PUTLINE	"IEXE_FOR_ERR_VOF"
 	;::::::::::debug :::::::::::::
 	PULS	D, X
 	PULS	A
 	LDB	#ERR_VOF
 	BRA	FOR__ERR_END
 IEXE_FOR_ERR_LSTKOF
+	;::::::::::debug :::::::::::::
+	;DBG_PUTLINE	"IEXE_FOR_ERR_LSTKOF"
+	;::::::::::debug :::::::::::::
 	LDB	#ERR_LSTKOF
 FOR__ERR_END	STB	ERR_CODE
 	RTS
@@ -1735,9 +1741,9 @@ BASIC_LOOP
 	LBSR	C_GETS	;1行を入力
 	;1行の文字列を中間コードの並びに変換
 
-;	;::::::::::debug :::::::::::::
-;	BSR	DUMP_LBUF	;debug
-;	;::::::::::debug :::::::::::::
+	;::::::::::debug :::::::::::::
+	;BSR	DUMP_LBUF	;debug
+	;::::::::::debug :::::::::::::
 	;文字列を中間コードに変換して長さを取得
 	LBSR	TOKTOI
 	TST	ERR_CODE
@@ -1746,7 +1752,7 @@ BASIC_LOOP
 	;DBG_PUTS	"TOKTOI LEN="
 	;DBG_PUTHEX_A
 	;DBG_NEWLINE
-;	;::::::::::debug :::::::::::::
+	;::::::::::debug :::::::::::::
 	LDB	IBUF
 	CMPB	#I_NUM
 	BNE	BASIC_COMMAND
@@ -1754,7 +1760,7 @@ BASIC_LOOP
 	;中間コードの並びがプログラムと判断する
 	;::::::::::debug :::::::::::::
 	;DBG_PUTS	"program\r"
-;	;::::::::::debug :::::::::::::
+	;::::::::::debug :::::::::::::
 	;中間コードバッファの先頭を長さに書き換える
 	STA	IBUF	
 	LBSR	INSLIST	;中間コードの1行をリストへ挿入
